@@ -1,0 +1,12 @@
+{
+  "name": "catpants-sqli",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^9.3.0",
+    "commander": "12.1.0",
+    "eslint": "9.x",
+    "globals": "^15.3.0"
+  }
+}
